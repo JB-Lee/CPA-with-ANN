@@ -10,7 +10,8 @@ class ScopeManager:
     scope: visa.Resource
 
     def __init__(self):
-        pass
+        self.visa_init()
+        self.scope_init()
 
     def visa_init(self):
         self.resource_manager = visa.ResourceManager()
@@ -49,6 +50,6 @@ class ScopeManager:
         if isinstance(channels, str):
             return _get_data(channels)
 
-        result = [_get_data(channels) for channel in channels]
+        result = [_get_data(channel) for channel in channels]
 
         return result
