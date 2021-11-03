@@ -7,6 +7,7 @@ from torch.utils.data import Dataset
 class _BaseTraceDataset(Dataset):
     df: pd.DataFrame
     trace_size: int
+    transform = None
 
     def __len__(self):
         return len(self.df)
@@ -23,6 +24,9 @@ class _BaseTraceDataset(Dataset):
             trace = trace[:self.trace_size]
 
         trace = np.expand_dims(trace, 0)
+
+        if self.transform:
+            trace = self.transform(trace)
 
         sample = {
             'plain': plain,
