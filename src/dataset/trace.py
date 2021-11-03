@@ -8,6 +8,12 @@ class _BaseTraceDataset(Dataset):
     df: pd.DataFrame
     trace_size: int
     transform = None
+    scaler = None
+
+    def __init__(self, trace_size, transform=None, scaler=None):
+        self.trace_size = trace_size
+        self.transform = transform
+        self.scaler = scaler
 
     def __len__(self):
         return len(self.df)
@@ -22,6 +28,9 @@ class _BaseTraceDataset(Dataset):
             trace = np.pad(trace, (0, self.trace_size), constant_values=0)
         else:
             trace = trace[:self.trace_size]
+
+        if self.scaler:
+            trace = self.scaler.fit_transform(trace.reshape(-1, 1)).flatten()
 
         trace = np.expand_dims(trace, 0)
 
@@ -39,12 +48,12 @@ class _BaseTraceDataset(Dataset):
 
 
 class FeatherTraceDataset(_BaseTraceDataset):
-    def __init__(self, feather_file, trace_size):
+    def __init__(self, feather_file, *args, **kwargs):
+        super(FeatherTraceDataset, self).__init__(*args, **kwargs)
         self.df = pd.read_feather(feather_file)
-        self.trace_size = trace_size
 
 
 class PickleTraceDataset(_BaseTraceDataset):
-    def __init__(self, pickle_file, trace_size):
+    def __init__(self, pickle_file, *args, **kwargs):
+        super(PickleTraceDataset, self).__init__(*args, **kwargs)
         self.df = pd.read_pickle(pickle_file)
-        self.trace_size = trace_size
