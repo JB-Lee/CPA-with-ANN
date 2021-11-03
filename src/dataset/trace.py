@@ -37,14 +37,16 @@ class _BaseTraceDataset(Dataset):
         if self.transform:
             trace = self.transform(trace)
 
-        sample = {
-            'plain': plain,
-            'key': key,
-            'cipher': cipher,
-            'trace': trace
-        }
+        # sample = {
+        #     'plain': plain,
+        #     'key': key,
+        #     'cipher': cipher,
+        #     'trace': trace
+        # }
+        #
+        # return sample
 
-        return sample
+        return trace, key
 
 
 class FeatherTraceDataset(_BaseTraceDataset):
