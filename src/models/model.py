@@ -9,7 +9,7 @@ from torch import nn, Tensor
 class BaseModel(pl.LightningModule):
     def __init__(self, learning_rate=1e-03, weight_decay=1e-03, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self.criterion = nn.NLLLoss()
+        self.criterion = nn.CrossEntropyLoss()
 
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
@@ -44,8 +44,6 @@ class BaseModel(pl.LightningModule):
         return batch_dict
 
     def validation_step(self, val_batch, batch_idx):
-        print(val_batch)
-
         x, y_truth = val_batch
 
         y_pred = self.forward(x)
@@ -133,15 +131,20 @@ class CNNModel(BaseModel):
             nn.GELU(),
             nn.Conv1d(in_channels=3, out_channels=6, kernel_size=3, stride=1, padding=1, bias=False),
             nn.GELU(),
+            nn.Dropout(0.2),
             nn.Conv1d(in_channels=6, out_channels=6, kernel_size=3, stride=1, padding=1, bias=False),
             nn.BatchNorm1d(6),
-            nn.GELU()
+            nn.GELU(),
+            nn.Dropout(0.3)
         )
 
         self.fc = nn.Sequential(
             nn.AdaptiveAvgPool1d(1024),
-            nn.Linear(1024, 256),
-            nn.LogSoftmax(dim=1)
+            nn.Flatten(),
+            nn.Linear(1024 * 6, 1024),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(1024, 256)
         )
 
     def forward(self, x):
