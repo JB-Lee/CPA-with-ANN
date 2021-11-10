@@ -1,3 +1,6 @@
+import os
+import os.path
+
 import numpy as np
 import pandas as pd
 import torch
@@ -24,10 +27,8 @@ class _BaseTraceDataset(Dataset):
 
         plain, key, cipher, trace = self.df.iloc[index, :4]
 
-        trace = trace.astype(np.float32)
-
         if trace.size < self.trace_size:
-            trace = np.pad(trace, (0, self.trace_size), constant_values=0)
+            trace = np.pad(trace, (0, self.trace_size - trace.size), constant_values=0)
         else:
             trace = trace[:self.trace_size]
 
@@ -64,3 +65,10 @@ class PickleTraceDataset(_BaseTraceDataset):
     def __init__(self, pickle_file, *args, **kwargs):
         super(PickleTraceDataset, self).__init__(*args, **kwargs)
         self.df = pd.read_pickle(pickle_file)
+
+
+class TraceDataset(_BaseTraceDataset):
+    def __init__(self, data_folder, *args, **kwargs):
+        super(TraceDataset, self).__init__(*args, **kwargs)
+        files = [os.path.join(data_folder, f) for f in os.listdir(data_folder) if f.endswith('.pkl')]
+        self.df = pd.concat([pd.read_pickle(f) for f in files])

@@ -1,6 +1,7 @@
-from .trace import FeatherTraceDataset, PickleTraceDataset
+from .trace import FeatherTraceDataset, PickleTraceDataset, TraceDataset
 
 __all__ = (
     'FeatherTraceDataset',
-    'PickleTraceDataset'
+    'PickleTraceDataset',
+    'TraceDataset'
 )
