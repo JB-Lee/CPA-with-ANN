@@ -27,6 +27,9 @@ class _BaseTraceDataset(Dataset):
 
         plain, key, cipher, trace = self.df.iloc[index, :4]
 
+        if self.transform:
+            trace = self.transform(trace)
+
         if trace.size < self.trace_size:
             trace = np.pad(trace, (0, self.trace_size - trace.size), constant_values=0)
         else:
@@ -36,9 +39,6 @@ class _BaseTraceDataset(Dataset):
             trace = self.scaler.fit_transform(trace.reshape(-1, 1)).flatten()
 
         trace = np.expand_dims(trace, 0)
-
-        if self.transform:
-            trace = self.transform(trace)
 
         # key = np.eye(256, dtype=np.uint8)[key[0]]
         key = key[0].astype('int64')

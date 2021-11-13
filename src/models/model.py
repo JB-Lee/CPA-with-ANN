@@ -324,24 +324,29 @@ class TestTransformerModel(BaseModel):
 
 
 class TestModel(BaseModel):
-    def __init__(self):
-        super(TestModel, self).__init__()
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
 
         blocks = [components.ConvLayer(1, 8, 11, 5, True), components.ConvLayer(8, 16, 5, 3, True),
                   components.ConvLayer(16, 16, 5, 3, True), components.ConvLayer(16, 32, 3, 2, True),
-                  components.ConvLayer(32, 32, 3, 2, True), components.ConvLayer(32, 256, 3, 1, True)]
+                  components.ConvLayer(32, 256, 3, 2, True)]
 
         self.feature_extractor = components.FeatureExtractor(nn.ModuleList(blocks))
-        self.quantizer = components.Quantizer()
+        # self.quantizer = components.Quantizer()
+        self.dropout = nn.Dropout(0.1)
         self.pe = components.ConvolutionalPositionalEmbedding(embed_dim=256, kernel_size=3, groups=1)
         self.encoder = components.Encoder(d_model=256, nhead=8, num_layers=2)
+        # self.down_sample = components.ConvLayer(256, 128, 1, 1, False)
         self.feature_projector = components.Projection(embed_size=256, output_size=256)
 
     def forward(self, x) -> Any:
         x = self.feature_extractor(x)
-        x = self.quantizer(x)
+        # x = self.quantizer(x)
+        x = self.dropout(x)
         x = self.pe(x)
         x = self.encoder(x)
+        # x = self.dropout(x)
+        # x = self.down_sample(x)
         x = self.feature_projector(x)
 
         return x

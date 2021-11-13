@@ -40,7 +40,7 @@ class FeatureExtractor(nn.Module):
 
 class Quantizer(nn.Module):
     def forward(self, x):
-        x = F.gumbel_softmax(x, hard=True, dim=1)
+        x = F.gumbel_softmax(x, tau=1.5, dim=1)
         return x
 
 
@@ -77,12 +77,12 @@ class ConvolutionalPositionalEmbedding(nn.Module):
         Returns:
             Tensor: The resulting feature. Shape ``[batch, frame, feature]``.
         """
-        x = x.transpose(-2, -1)
+        # x = x.transpose(-2, -1)
         x = self.conv(x)
         if self.num_remove > 0:
             x = x[..., :-self.num_remove]
         x = F.gelu(x)
-        x = x.transpose(-2, -1)
+        # x = x.transpose(-2, -1)
         return x
 
 
@@ -106,9 +106,11 @@ class Projection(nn.Module):
         self.output_size = output_size
         self.dense = nn.Linear(embed_size * output_size, output_size)
         self.flatten = nn.Flatten()
+        # self.dropout = nn.Dropout(0.3)
 
     def forward(self, x):
         x = F.adaptive_avg_pool1d(x, self.output_size)
         x = self.flatten(x)
+        #x = self.dropout(x)
         x = self.dense(x)
         return x
