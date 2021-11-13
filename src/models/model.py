@@ -350,3 +350,94 @@ class TestModel(BaseModel):
         x = self.feature_projector(x)
 
         return x
+
+
+class FE(nn.Module):
+    def __init__(self):
+        super(FE, self).__init__()
+
+        blocks = [components.ConvLayer(1, 4, 11, 5, True), components.ConvLayer(4, 16, 11, 5, True),
+                  components.ConvLayer(16, 64, 5, 3, True), components.ConvLayer(64, 256, 5, 3, True),
+                  components.ConvLayer(256, 1024, 3, 2, True)]
+
+        self.feature_extractor = components.FeatureExtractor(nn.ModuleList(blocks))
+        self.quantizer = components.Quantizer()
+
+    def forward(self, x):
+        x = self.feature_extractor(x)
+        x = self.quantizer(x)
+        return x
+
+class CodebookModel(nn.Module):
+    def __init__(self):
+        super(CodebookModel, self).__init__()
+        self.projector = components.Projection(embed_size=1024, output_size=256)
+
+    def forward(self, x):
+        x = self.projector(x)
+        return x
+
+class TRFClassifier(nn.Module):
+    def __init__(self):
+        super(TRFClassifier, self).__init__()
+        self.dropout = nn.Dropout(0.1)
+        self.pe = components.ConvolutionalPositionalEmbedding(embed_dim=1024, kernel_size=3, groups=1)
+        self.encoder = components.Encoder(d_model=1024, nhead=8, num_layers=2)
+        # self.down_sample = components.ConvLayer(256, 128, 1, 1, False)
+        self.feature_projector = components.Projection(embed_size=1024, output_size=256)
+
+    def forward(self, x):
+        x = self.dropout(x)
+        x = self.pe(x)
+        x = self.encoder(x)
+        x = self.feature_projector(x)
+
+        return x
+
+
+class TestModel2(BaseModel):
+    def __init__(self, alpha=2, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+
+        self.fe = FE()
+        self.cb = CodebookModel()
+        self.trf = TRFClassifier()
+
+        self.alpha = alpha
+
+    def forward(self, x) -> Any:
+        x = self.fe(x)
+        x = self.trf(x)
+        return x
+
+    def training_step(self, train_batch, batch_idx):
+        x, y_truth = train_batch
+
+        q = self.fe(x)
+
+        y_pred = self.trf(q)
+        y_cb = self.cb(q)
+
+        loss_pred = self.criterion(y_pred, y_truth)
+        loss_cb = self.criterion(y_cb, y_truth)
+
+        loss = self.alpha * loss_pred + loss_cb
+
+        pred = torch.argmax(y_pred, dim=1)
+        acc = accuracy(pred, y_truth)
+
+        logs = {
+            'train_loss': loss,
+            'train_acc': acc
+        }
+
+        batch_dict = {
+            'loss': loss,
+            'log': logs,
+            'correct': pred.eq(y_truth).sum().item(),
+            'total': len(y_truth)
+        }
+
+        self.log('train_loss', loss, prog_bar=True)
+        self.log('train_acc', acc, prog_bar=True)
+        return batch_dict
