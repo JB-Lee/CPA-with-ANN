@@ -29,6 +29,11 @@ class BaseModel(pl.LightningModule):
         self.best_epoch = 0
         self.best_val = 10.0
 
+        self.train_loss_log = []
+        self.train_acc_log = []
+        self.val_loss_log = []
+        self.val_acc_log = []
+
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
 
@@ -111,6 +116,9 @@ class BaseModel(pl.LightningModule):
         self.logger.experiment.add_scalar('Loss/Train', avg_loss, self.current_epoch)
         self.logger.experiment.add_scalar('Accuracy/Train', avg_acc, self.current_epoch)
 
+        self.train_loss_log.append(avg_loss)
+        self.train_acc_log.append(avg_acc)
+
         tb_logs = {'loss': avg_loss, 'Accuracy': avg_acc}
 
     def validation_epoch_end(self, outputs):
@@ -127,12 +135,21 @@ class BaseModel(pl.LightningModule):
         self.logger.experiment.add_scalar('Loss/Validation', avg_loss, self.current_epoch)
         self.logger.experiment.add_scalar('Accuracy/Validation', avg_acc, self.current_epoch)
 
+        self.val_loss_log.append(avg_loss)
+        self.val_acc_log.append(avg_acc)
+
         tb_logs = {'loss': avg_loss, 'Accuracy': avg_acc}
 
         return {
             'loss': avg_loss,
             'log': tb_logs
         }
+
+    def get_history(self):
+        return {'train_loss': self.train_loss_log,
+                'train_acc': self.train_acc_log,
+                'val_loss': self.val_loss_log,
+                'val_acc': self.val_acc_log}
 
 
 class TransformerModel(pl.LightningModule):
@@ -230,7 +247,62 @@ class TestCNNModel(BaseModel):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
 
-        self.conv = nn.Sequential(
+        self.sparse_conv = nn.Sequential(
+            nn.Conv1d(in_channels=1, out_channels=2, kernel_size=11, stride=4, padding=1, bias=False),
+            nn.BatchNorm1d(2),
+            nn.ReLU(inplace=False),
+
+            nn.Conv1d(in_channels=2, out_channels=4, kernel_size=11, stride=4, padding=1, bias=False),
+            nn.BatchNorm1d(4),
+            nn.ReLU(inplace=False),
+
+            nn.Conv1d(in_channels=4, out_channels=8, kernel_size=5, stride=2, padding=1, bias=False),
+            nn.BatchNorm1d(8),
+            nn.ReLU(inplace=False),
+
+            nn.Conv1d(in_channels=8, out_channels=16, kernel_size=5, stride=2, padding=1, bias=False),
+            nn.BatchNorm1d(16),
+            nn.ReLU(inplace=False),
+
+            nn.Conv1d(in_channels=16, out_channels=64, kernel_size=5, stride=2, padding=1, bias=False),
+            nn.BatchNorm1d(64),
+            nn.ReLU(inplace=False),
+
+            nn.Conv1d(in_channels=64, out_channels=256, kernel_size=5, stride=2, padding=1, bias=False),
+            nn.BatchNorm1d(256),
+            nn.ReLU(inplace=False),
+
+            nn.Dropout(0.1)
+        )
+
+        self.dense_conv = nn.Sequential(
+            nn.Conv1d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.GELU(),
+
+            nn.Conv1d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.GELU(),
+
+            nn.Conv1d(in_channels=256, out_channels=256, kernel_size=3, stride=2, padding=1, bias=False),
+
+        )
+
+        self.gap = nn.Sequential(
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten()
+        )
+
+    def forward(self, x):
+        out = self.sparse_conv(x)
+        out = self.dense_conv(out)
+        out = self.gap(out)
+        return out
+
+
+class TestTransformerModel(BaseModel):
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+
+        self.sparse_conv = nn.Sequential(
             nn.Conv1d(in_channels=1, out_channels=2, kernel_size=11, stride=4, padding=1, bias=False),
             nn.BatchNorm1d(2),
             nn.ReLU(inplace=False),
@@ -243,64 +315,19 @@ class TestCNNModel(BaseModel):
             nn.BatchNorm1d(8),
             nn.ReLU(inplace=False),
 
-            nn.Conv1d(in_channels=8, out_channels=16, kernel_size=11, stride=4, padding=1, bias=False),
+            nn.Conv1d(in_channels=8, out_channels=16, kernel_size=3, stride=2, padding=1, bias=False),
             nn.BatchNorm1d(16),
             nn.ReLU(inplace=False),
-        )
 
-        self.fc = nn.Sequential(
-            nn.AdaptiveAvgPool1d(1024),
-            nn.Flatten(),
-            nn.Linear(1024 * 16, 1024),
-            nn.ReLU(),
-            nn.Linear(1024, 256)
-        )
-
-    def forward(self, x):
-        out = self.conv(x)
-        out = self.fc(out)
-        return out
-
-
-class TestTransformerModel(BaseModel):
-    def __init__(self, *args: Any, **kwargs: Any):
-        super().__init__(*args, **kwargs)
-
-        self.sparse_conv = nn.Sequential(
-            nn.Conv1d(in_channels=1, out_channels=16, kernel_size=10, stride=5, bias=False),
-            LayerNorm(16),
-            nn.GELU(),
-
-            nn.Conv1d(in_channels=16, out_channels=16, kernel_size=3, stride=2, bias=False),
-            LayerNorm(16),
-            nn.GELU(),
-
-            nn.Conv1d(in_channels=16, out_channels=16, kernel_size=3, stride=2, bias=False),
-            LayerNorm(16),
-            nn.GELU(),
-
-            nn.Conv1d(in_channels=16, out_channels=16, kernel_size=3, stride=2, bias=False),
-            LayerNorm(16),
-            nn.GELU(),
-
-            nn.Conv1d(in_channels=16, out_channels=16, kernel_size=2, stride=2, bias=False),
-            LayerNorm(16),
-            nn.GELU(),
-
-            nn.Conv1d(in_channels=16, out_channels=16, kernel_size=2, stride=2, bias=False),
-            LayerNorm(16),
-            nn.GELU(),
+            nn.Dropout(0.1)
         )
 
         self.feature_projection = nn.Sequential(
             nn.AdaptiveAvgPool1d(16),
             nn.Linear(16, 16),
-            nn.Dropout(0.05),
         )
 
-        self.CPE = nn.Sequential(
-            nn.Conv1d(in_channels=256, out_channels=256, kernel_size=3, padding=1),
-        )
+        self.CPE = components.ConvolutionalPositionalEmbedding(embed_dim=16, kernel_size=3, groups=1)
 
         encoder_layer = nn.TransformerEncoderLayer(d_model=16, nhead=8)
         self.TRF = nn.TransformerEncoder(encoder_layer, num_layers=3)
@@ -316,6 +343,8 @@ class TestTransformerModel(BaseModel):
         out = self.sparse_conv(x)
 
         out = self.feature_projection(out)
+
+        out = self.CPE(out)
 
         out = self.TRF(out)
         out = self.FP(out)
@@ -356,35 +385,40 @@ class FE(nn.Module):
     def __init__(self):
         super(FE, self).__init__()
 
-        blocks = [components.ConvLayer(1, 4, 11, 5, True), components.ConvLayer(4, 16, 11, 5, True),
-                  components.ConvLayer(16, 64, 5, 3, True), components.ConvLayer(64, 256, 5, 3, True),
-                  components.ConvLayer(256, 1024, 3, 2, True)]
+        blocks = [components.ConvLayer(1, 2, 11, 5, True), components.ConvLayer(2, 4, 11, 5, True),
+                  components.ConvLayer(4, 8, 5, 3, True), components.ConvLayer(8, 16, 5, 3, True),
+                  components.ConvLayer(16, 32, 3, 2, True)]
 
         self.feature_extractor = components.FeatureExtractor(nn.ModuleList(blocks))
-        self.quantizer = components.Quantizer()
+        # self.quantizer = components.Quantizer()
+        # self.dense = nn.Linear(32, 32)
 
     def forward(self, x):
         x = self.feature_extractor(x)
-        x = self.quantizer(x)
+        # x = self.quantizer(x)
+        # x = F.adaptive_avg_pool1d(x, 32)
+        # x = self.dense(x)
         return x
+
 
 class CodebookModel(nn.Module):
     def __init__(self):
         super(CodebookModel, self).__init__()
-        self.projector = components.Projection(embed_size=1024, output_size=256)
+        self.projector = components.Projection(embed_size=32, output_size=256)
 
     def forward(self, x):
         x = self.projector(x)
         return x
 
+
 class TRFClassifier(nn.Module):
     def __init__(self):
         super(TRFClassifier, self).__init__()
         self.dropout = nn.Dropout(0.1)
-        self.pe = components.ConvolutionalPositionalEmbedding(embed_dim=1024, kernel_size=3, groups=1)
-        self.encoder = components.Encoder(d_model=1024, nhead=8, num_layers=2)
+        self.pe = components.ConvolutionalPositionalEmbedding(embed_dim=32, kernel_size=3, groups=1)
+        self.encoder = components.Encoder(d_model=32, nhead=8, num_layers=2)
         # self.down_sample = components.ConvLayer(256, 128, 1, 1, False)
-        self.feature_projector = components.Projection(embed_size=1024, output_size=256)
+        self.feature_projector = components.Projection(embed_size=32, output_size=256)
 
     def forward(self, x):
         x = self.dropout(x)
